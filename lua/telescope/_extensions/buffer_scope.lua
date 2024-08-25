@@ -131,6 +131,22 @@ function M.gen_from_buffer(opts)
         opts.__prefix = opts.bufnr_width + 4 + icon_width + 3 + 1 + #tostring(entry.lnum)
         local display_bufname, path_style = utils.transform_path(opts, entry.filename)
         local icon, hl_group = utils.get_devicons(entry.filename, disable_devicons)
+        -- /ごとに色を変える
+        -- 色は文字で一意に決まる
+        local hl_params = {}
+        local start_pos = 0
+        for i, dir in ipairs(vim.split(display_bufname, "/")) do
+            local color = M.GenerateRandomColor(dir)
+            -- 色作成
+            vim.cmd(
+                'execute "hi def buffer_scope_' .. dir .. " ctermfg=168 ctermbg=16 guifg=" .. color .. ' guibg=#282c34"'
+            )
+            -- ハイライト追加
+            local end_pos = start_pos + #dir
+
+            table.insert(hl_params, { { start_pos, end_pos }, "buffer_scope_" .. dir })
+            start_pos = end_pos + 1
+        end
 
         return displayer({
             { entry.bufnr, "TelescopeResultsNumber" },
@@ -139,7 +155,7 @@ function M.gen_from_buffer(opts)
             {
                 display_bufname .. ":" .. entry.lnum,
                 function()
-                    return path_style
+                    return hl_params
                 end,
             },
         })
@@ -177,6 +193,33 @@ function M.gen_from_buffer(opts)
             indicator = indicator,
         }, opts)
     end
+end
+
+function M.GenerateHexColor(seed)
+    local hex = "789ABCDE"
+    local color = ""
+    local number = seed
+    for i = 1, 6 do
+        color = color .. string.sub(hex, number % 8 + 1, number % 8 + 1)
+        number = math.floor(number / 16)
+    end
+    return color
+end
+
+function M.GenerateSeedIDFromString(name)
+    local id = vim.fn.sha256(name)
+    local numbers = {}
+    for char in string.gmatch(id, ".") do
+        if char >= "0" and char <= "9" then
+            table.insert(numbers, char)
+        end
+    end
+    return table.concat(numbers):sub(1, 9)
+end
+
+function M.GenerateRandomColor(name)
+    local seed = M.GenerateSeedIDFromString(name)
+    return "#" .. M.GenerateHexColor(seed)
 end
 
 return telescope.register_extension({
