@@ -139,7 +139,7 @@ function M.gen_from_buffer(opts)
             local color = M.GenerateRandomColor(dir)
             -- 色作成
             vim.cmd(
-                'execute "hi def buffer_scope_' .. dir .. " ctermfg=168 ctermbg=16 guifg=" .. color .. ' guibg=#282c34"'
+                'execute "hi def buffer_scope_' .. dir .. " ctermfg=168 ctermbg=16 guifg=" .. color .. ' guibg=NONE"'
             )
             -- ハイライト追加
             local end_pos = start_pos + #dir
