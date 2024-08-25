@@ -127,8 +127,8 @@ function M.gen_from_buffer(opts)
     local cwd = utils.path_expand(opts.cwd or vim.loop.cwd())
 
     local make_display = function(entry)
-        -- bufnr_width + modes + icon + 3 spaces + : + lnum
-        opts.__prefix = opts.bufnr_width + 4 + icon_width + 3 + 1 + #tostring(entry.lnum)
+        -- bufnr_width + modes + icon + 3 spaces
+        opts.__prefix = opts.bufnr_width + 4 + icon_width + 3
         local display_bufname, path_style = utils.transform_path(opts, entry.filename)
         local icon, hl_group = utils.get_devicons(entry.filename, disable_devicons)
         -- /ごとに色を変える
@@ -153,7 +153,7 @@ function M.gen_from_buffer(opts)
             { entry.indicator, "TelescopeResultsComment" },
             { icon, hl_group },
             {
-                display_bufname .. ":" .. entry.lnum,
+                display_bufname,
                 function()
                     return hl_params
                 end,
