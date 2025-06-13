@@ -13,6 +13,15 @@ local strings = require("plenary.strings")
 
 local M = {}
 
+-- バッファがカレントディレクトリ内にあるかチェック
+local function buf_in_cwd(bufname, cwd)
+    if bufname == "" then
+        return true
+    end
+    local bufname_path = Path:new(bufname):normalize(cwd)
+    return bufname_path:sub(1, #cwd) == cwd
+end
+
 function M.buffers(opts)
     opts = opts or {}
 
@@ -149,15 +158,23 @@ function M.gen_from_buffer(opts)
         end
 
         -- git の差分行数を表示する
-        local git_diff = vim.fn.system("git diff --numstat " .. entry.path)
-        local git_diff_lines = vim.split(git_diff, "\n")
         local git_diff_add = 0
         local git_diff_del = 0
-        for i, line in ipairs(git_diff_lines) do
-            local diff = vim.split(line, "\t")
-            if #diff == 3 then
-                git_diff_add = git_diff_add + tonumber(diff[1])
-                git_diff_del = git_diff_del + tonumber(diff[2])
+        
+        -- gitリポジトリかチェック
+        local is_git_repo = vim.fn.system("git rev-parse --is-inside-work-tree 2>/dev/null"):match("true")
+        
+        if is_git_repo and entry.path then
+            local git_diff = vim.fn.system("git diff --numstat -- " .. vim.fn.shellescape(entry.path) .. " 2>/dev/null")
+            if git_diff and git_diff ~= "" then
+                local git_diff_lines = vim.split(git_diff, "\n")
+                for i, line in ipairs(git_diff_lines) do
+                    local diff = vim.split(line, "\t")
+                    if #diff == 3 then
+                        git_diff_add = git_diff_add + (tonumber(diff[1]) or 0)
+                        git_diff_del = git_diff_del + (tonumber(diff[2]) or 0)
+                    end
+                end
             end
         end
 
@@ -172,7 +189,7 @@ function M.gen_from_buffer(opts)
                 end,
             },
             {
-                git_diff .. " " .. git_diff_add .. " " .. git_diff_del,
+                " +" .. git_diff_add .. " -" .. git_diff_del,
                 "TelescopeResultsComment",
             },
         })
