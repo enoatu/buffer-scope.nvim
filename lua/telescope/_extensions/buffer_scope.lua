@@ -148,6 +148,19 @@ function M.gen_from_buffer(opts)
             start_pos = end_pos + 1
         end
 
+        -- git の差分行数を表示する
+        local git_diff = vim.fn.system("git diff --numstat " .. entry.path)
+        local git_diff_lines = vim.split(git_diff, "\n")
+        local git_diff_add = 0
+        local git_diff_del = 0
+        for i, line in ipairs(git_diff_lines) do
+            local diff = vim.split(line, "\t")
+            if #diff == 3 then
+                git_diff_add = git_diff_add + tonumber(diff[1])
+                git_diff_del = git_diff_del + tonumber(diff[2])
+            end
+        end
+
         return displayer({
             { entry.bufnr, "TelescopeResultsNumber" },
             { entry.indicator, "TelescopeResultsComment" },
@@ -157,6 +170,10 @@ function M.gen_from_buffer(opts)
                 function()
                     return hl_params
                 end,
+            },
+            {
+                git_diff .. " " .. git_diff_add .. " " .. git_diff_del,
+                "TelescopeResultsComment",
             },
         })
     end
