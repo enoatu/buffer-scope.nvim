@@ -39,7 +39,7 @@ function M.buffers(opts)
 
         local bufname = vim.api.nvim_buf_get_name(bufnr)
 
-        if opts.cwd_only and not buf_in_cwd(bufname, vim.loop.cwd()) then
+        if opts.cwd_only and not buf_in_cwd(bufname, vim.fn.getcwd()) then
             return false
         end
         if not opts.cwd_only and opts.cwd and not buf_in_cwd(bufname, opts.cwd) then
@@ -133,7 +133,7 @@ function M.gen_from_buffer(opts)
         },
     })
 
-    local cwd = utils.path_expand(opts.cwd or vim.loop.cwd())
+    local cwd = utils.path_expand(opts.cwd or vim.fn.getcwd())
 
     local make_display = function(entry)
         -- bufnr_width + modes + icon + 3 spaces
