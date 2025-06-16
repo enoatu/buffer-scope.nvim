@@ -144,39 +144,27 @@ function M.gen_from_buffer(opts)
         -- 色は文字で一意に決まる
         local hl_params = {}
         local start_pos = 0
-        for i, dir in ipairs(vim.split(display_bufname, "/")) do
-            local color = M.GenerateRandomColor(dir)
-            -- 色作成
-            vim.cmd(
-                'execute "hi def buffer_scope_' .. dir .. " ctermfg=168 ctermbg=16 guifg=" .. color .. ' guibg=NONE"'
-            )
-            -- ハイライト追加
-            local end_pos = start_pos + #dir
-
-            table.insert(hl_params, { { start_pos, end_pos }, "buffer_scope_" .. dir })
-            start_pos = end_pos + 1
-        end
-
-        -- git の差分行数を表示する
-        local git_diff_add = 0
-        local git_diff_del = 0
-        
-        -- gitリポジトリかチェック
-        local is_git_repo = vim.fn.system("git rev-parse --is-inside-work-tree 2>/dev/null"):match("true")
-        
-        if is_git_repo and entry.path then
-            local git_diff = vim.fn.system("git diff --numstat -- " .. vim.fn.shellescape(entry.path) .. " 2>/dev/null")
-            if git_diff and git_diff ~= "" then
-                local git_diff_lines = vim.split(git_diff, "\n")
-                for i, line in ipairs(git_diff_lines) do
-                    local diff = vim.split(line, "\t")
-                    if #diff == 3 then
-                        git_diff_add = git_diff_add + (tonumber(diff[1]) or 0)
-                        git_diff_del = git_diff_del + (tonumber(diff[2]) or 0)
-                    end
+        local ok, _ = pcall(function()
+            for i, dir in ipairs(vim.split(display_bufname, "/")) do
+                if dir ~= "" then
+                    local color = M.GenerateRandomColor(dir)
+                    -- 色作成（エラーハンドリング付き）
+                    local hl_name = "buffer_scope_" .. dir:gsub("[^%w]", "_")
+                    pcall(vim.api.nvim_set_hl, 0, hl_name, { fg = color, bg = "NONE" })
+                    -- ハイライト追加
+                    local end_pos = start_pos + #dir
+                    table.insert(hl_params, { { start_pos, end_pos }, hl_name })
+                    start_pos = end_pos + 1
                 end
             end
+        end)
+        if not ok then
+            hl_params = {}
         end
+
+        -- git差分の表示は無効化（パフォーマンスとエラー回避のため）
+        local git_diff_add = 0
+        local git_diff_del = 0
 
         return displayer({
             { entry.bufnr, "TelescopeResultsNumber" },
@@ -187,10 +175,6 @@ function M.gen_from_buffer(opts)
                 function()
                     return hl_params
                 end,
-            },
-            {
-                " +" .. git_diff_add .. " -" .. git_diff_del,
-                "TelescopeResultsComment",
             },
         })
     end
@@ -232,23 +216,22 @@ end
 function M.GenerateHexColor(seed)
     local hex = "789ABCDE"
     local color = ""
-    local number = seed
+    local number = tonumber(seed) or 0
     for i = 1, 6 do
-        color = color .. string.sub(hex, number % 8 + 1, number % 8 + 1)
+        color = color .. string.sub(hex, (number % 8) + 1, (number % 8) + 1)
         number = math.floor(number / 16)
     end
     return color
 end
 
 function M.GenerateSeedIDFromString(name)
-    local id = vim.fn.sha256(name)
-    local numbers = {}
-    for char in string.gmatch(id, ".") do
-        if char >= "0" and char <= "9" then
-            table.insert(numbers, char)
-        end
+    -- シンプルなハッシュ関数を使用
+    local hash = 0
+    for i = 1, #name do
+        local char = name:byte(i)
+        hash = ((hash * 31) + char) % 2147483647
     end
-    return table.concat(numbers):sub(1, 9)
+    return tostring(hash)
 end
 
 function M.GenerateRandomColor(name)
