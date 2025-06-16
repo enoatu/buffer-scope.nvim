@@ -18,8 +18,14 @@ local function buf_in_cwd(bufname, cwd)
     if bufname == "" then
         return true
     end
-    local bufname_path = Path:new(bufname):normalize(cwd)
-    return bufname_path:sub(1, #cwd) == cwd
+    local ok, bufname_path = pcall(function()
+        return Path:new(bufname):make_relative(cwd)
+    end)
+    if not ok then
+        return false
+    end
+    -- 相対パスが..で始まる場合はcwd外
+    return not bufname_path:match("^%.%.")
 end
 
 function M.buffers(opts)
