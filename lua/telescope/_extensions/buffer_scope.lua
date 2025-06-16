@@ -59,7 +59,28 @@ function M.buffers(opts)
         return
     end
 
-    if opts.sort_mru then
+    -- ソート処理
+    if opts.sort_by == "alphabetical_asc" then
+        -- ABC昇順
+        table.sort(bufnrs, function(a, b)
+            local name_a = vim.api.nvim_buf_get_name(a):lower()
+            local name_b = vim.api.nvim_buf_get_name(b):lower()
+            return name_a < name_b
+        end)
+    elseif opts.sort_by == "alphabetical_desc" then
+        -- ABC降順
+        table.sort(bufnrs, function(a, b)
+            local name_a = vim.api.nvim_buf_get_name(a):lower()
+            local name_b = vim.api.nvim_buf_get_name(b):lower()
+            return name_a > name_b
+        end)
+    elseif opts.sort_by == "frequency" then
+        -- アクセス頻度順（lastusedで代用）
+        table.sort(bufnrs, function(a, b)
+            return vim.fn.getbufinfo(a)[1].lastused > vim.fn.getbufinfo(b)[1].lastused
+        end)
+    elseif opts.sort_mru then
+        -- 従来のMRUソート（互換性のため残す）
         table.sort(bufnrs, function(a, b)
             return vim.fn.getbufinfo(a)[1].lastused > vim.fn.getbufinfo(b)[1].lastused
         end)
@@ -110,8 +131,95 @@ function M.buffers(opts)
             previewer = conf.grep_previewer(opts),
             sorter = conf.generic_sorter(opts),
             default_selection_index = default_selection_idx,
-            attach_mappings = function(_, map)
+            attach_mappings = function(prompt_bufnr, map)
                 map({ "i", "n" }, "<M-d>", actions.delete_buffer)
+                
+                -- ソート方法を切り替えるキーマッピング
+                local function cycle_sort()
+                    local current_picker = action_state.get_current_picker(prompt_bufnr)
+                    local current_sort = opts.sort_by or "frequency"
+                    
+                    -- ソート順序をサイクル
+                    local sort_orders = { "frequency", "alphabetical_asc", "alphabetical_desc" }
+                    local sort_labels = { "Frequency", "A-Z", "Z-A" }
+                    local current_index = 1
+                    for i, v in ipairs(sort_orders) do
+                        if v == current_sort then
+                            current_index = i
+                            break
+                        end
+                    end
+                    
+                    local next_index = current_index % #sort_orders + 1
+                    opts.sort_by = sort_orders[next_index]
+                    
+                    -- 現在のバッファ情報を再取得してソート
+                    local bufnrs = vim.tbl_filter(function(bufnr)
+                        if 1 ~= vim.fn.buflisted(bufnr) then
+                            return false
+                        end
+                        if opts.show_all_buffers == false and not vim.api.nvim_buf_is_loaded(bufnr) then
+                            return false
+                        end
+                        if opts.ignore_current_buffer and bufnr == vim.api.nvim_get_current_buf() then
+                            return false
+                        end
+                        local bufname = vim.api.nvim_buf_get_name(bufnr)
+                        if opts.cwd_only and not buf_in_cwd(bufname, vim.fn.getcwd()) then
+                            return false
+                        end
+                        if not opts.cwd_only and opts.cwd and not buf_in_cwd(bufname, opts.cwd) then
+                            return false
+                        end
+                        return true
+                    end, vim.api.nvim_list_bufs())
+                    
+                    -- ソート処理
+                    if opts.sort_by == "alphabetical_asc" then
+                        table.sort(bufnrs, function(a, b)
+                            local name_a = vim.api.nvim_buf_get_name(a):lower()
+                            local name_b = vim.api.nvim_buf_get_name(b):lower()
+                            return name_a < name_b
+                        end)
+                    elseif opts.sort_by == "alphabetical_desc" then
+                        table.sort(bufnrs, function(a, b)
+                            local name_a = vim.api.nvim_buf_get_name(a):lower()
+                            local name_b = vim.api.nvim_buf_get_name(b):lower()
+                            return name_a > name_b
+                        end)
+                    elseif opts.sort_by == "frequency" then
+                        table.sort(bufnrs, function(a, b)
+                            return vim.fn.getbufinfo(a)[1].lastused > vim.fn.getbufinfo(b)[1].lastused
+                        end)
+                    end
+                    
+                    -- 新しいエントリを作成
+                    local buffers = {}
+                    for _, bufnr in ipairs(bufnrs) do
+                        local flag = bufnr == vim.fn.bufnr("") and "%" or (bufnr == vim.fn.bufnr("#") and "#" or " ")
+                        local element = {
+                            bufnr = bufnr,
+                            flag = flag,
+                            info = vim.fn.getbufinfo(bufnr)[1],
+                        }
+                        table.insert(buffers, element)
+                    end
+                    
+                    -- ピッカーを更新
+                    local new_finder = finders.new_table({
+                        results = buffers,
+                        entry_maker = opts.entry_maker or M.gen_from_buffer(opts),
+                    })
+                    
+                    current_picker:refresh(new_finder, opts)
+                    
+                    -- タイトルを更新
+                    current_picker.prompt_border:change_title("Buffers [" .. sort_labels[next_index] .. "]")
+                end
+                
+                -- Ctrl+sでソート方法を切り替え
+                map({ "i", "n" }, "<C-s>", cycle_sort)
+                
                 return true
             end,
         })
